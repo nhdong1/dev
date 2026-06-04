@@ -1,0 +1,503 @@
+# Test Coverage — Độ Bao Phủ Kiểm Thử
+
+> Coverlet, ReportGenerator — đo lường và phân tích độ bao phủ test để định hướng viết test hiệu quả hơn.
+
+---
+
+## 🎯 Test Coverage Là Gì?
+
+**Test Coverage** (Độ bao phủ kiểm thử) đo lường phần trăm code được thực thi khi test suite chạy.
+
+```
+Test Coverage = (Số đơn vị code được test chạy qua) / (Tổng số đơn vị code) × 100%
+```
+
+### Các Loại Coverage
+
+| Loại                         | Đo Lường                                          | Ý Nghĩa                                            |
+| ---------------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| **Line Coverage**            | % dòng code được thực thi                         | Dễ đạt cao nhưng không nói lên toàn bộ             |
+| **Branch Coverage**          | % nhánh (if/else, switch) được kiểm tra           | Quan trọng hơn — đảm bảo mọi nhánh được kiểm tra   |
+| **Method Coverage**          | % method/function được gọi                        | Tốt để phát hiện dead code (code chết)              |
+| **Statement Coverage**       | % câu lệnh được thực thi                          | Tương tự Line Coverage                             |
+| **Path Coverage**            | % đường đi thực thi được kiểm tra                 | Khó đạt, dùng cho critical code                    |
+| **Mutation Coverage**        | % mutation (biến đổi code) bị test phát hiện      | Đo chất lượng test, không chỉ số lượng             |
+
+---
+
+## 📦 Coverlet — Đo Coverage Trong .NET
+
+**Coverlet** là công cụ đo test coverage cross-platform cho .NET, tích hợp sẵn với `dotnet test`.
+
+### Cài Đặt
+
+```bash
+# Thêm vào project test
+dotnet add package coverlet.msbuild
+# Hoặc dùng global tool
+dotnet tool install --global coverlet.console
+```
+
+### Chạy Coverage Cơ Bản
+
+```bash
+# Chạy test với coverage — output dạng lcov
+dotnet test --collect:"XPlat Code Coverage"
+
+# Output ra thư mục cụ thể
+dotnet test --collect:"XPlat Code Coverage" \
+    --results-directory ./TestResults
+
+# Chỉ định format
+dotnet test \
+    /p:CollectCoverage=true \
+    /p:CoverletOutputFormat=lcov \
+    /p:CoverletOutput=./coverage/lcov.info
+```
+
+### Các Format Output
+
+```bash
+# Nhiều format cùng lúc
+dotnet test /p:CollectCoverage=true \
+    /p:CoverletOutputFormat="json,lcov,cobertura,opencover" \
+    /p:CoverletOutput=./coverage/
+
+# json  → Coverlet's native format
+# lcov  → Dùng với VS Code Coverage Gutters extension
+# cobertura → Dùng với Azure DevOps, Jenkins
+# opencover → Dùng với SonarQube, ReportGenerator
+```
+
+---
+
+## 📊 ReportGenerator — Tạo HTML Report
+
+```bash
+# Cài ReportGenerator
+dotnet tool install --global dotnet-reportgenerator-globaltool
+
+# Tạo HTML report từ coverage data
+reportgenerator \
+    -reports:"./coverage/coverage.opencover.xml" \
+    -targetdir:"./coverage/report" \
+    -reporttypes:"Html;Badges"
+
+# Mở report
+start coverage/report/index.html  # Windows
+open coverage/report/index.html   # macOS
+```
+
+### Script Tự Động (PowerShell)
+
+```powershell
+# run-coverage.ps1
+dotnet test `
+    /p:CollectCoverage=true `
+    /p:CoverletOutputFormat=opencover `
+    /p:CoverletOutput=./coverage/ `
+    /p:ExcludeByAttribute="GeneratedCodeAttribute,CompilerGeneratedAttribute"
+
+reportgenerator `
+    -reports:"./coverage/coverage.opencover.xml" `
+    -targetdir:"./coverage/report" `
+    -reporttypes:"Html;Badges;MarkdownSummaryGitHub"
+
+Write-Host "Report: ./coverage/report/index.html"
+```
+
+---
+
+## ⚙️ Cấu Hình Coverage
+
+### coverlet.runsettings — File Cấu Hình
+
+```xml
+<!-- coverlet.runsettings -->
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <!-- Loại trừ các thư mục không cần test -->
+          <ExcludeByFile>
+            **/Migrations/**,
+            **/Models/Generated/**,
+            **/*.g.cs
+          </ExcludeByFile>
+
+          <!-- Loại trừ theo namespace -->
+          <Exclude>
+            [*]*.Migrations.*,
+            [*]*Program,
+            [*]*Startup
+          </Exclude>
+
+          <!-- Chỉ đo coverage cho namespace này -->
+          <Include>
+            [MyApp.*]*
+          </Include>
+
+          <!-- Loại trừ theo attribute -->
+          <ExcludeByAttribute>
+            GeneratedCodeAttribute,
+            CompilerGeneratedAttribute,
+            ExcludeFromCodeCoverageAttribute
+          </ExcludeByAttribute>
+
+          <!-- Ngưỡng coverage tối thiểu -->
+          <Threshold>80</Threshold>
+          <ThresholdType>line</ThresholdType>
+          <ThresholdStat>total</ThresholdStat>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
+```
+
+```bash
+dotnet test --settings coverlet.runsettings
+```
+
+### Loại Trừ Code Không Cần Test
+
+```csharp
+using System.Diagnostics.CodeAnalysis;
+
+// Loại trừ class khỏi coverage
+[ExcludeFromCodeCoverage]
+public class AutoGeneratedMapper { }
+
+// Loại trừ method
+public class MyService
+{
+    [ExcludeFromCodeCoverage]
+    private void LogDebugInternal(string msg) => Debug.WriteLine(msg);
+
+    public void ImportantMethod()
+    {
+        // Code này vẫn được đo coverage
+    }
+}
+```
+
+---
+
+## 🎯 Ngưỡng Coverage — Tự Động Fail Build
+
+Đặt ngưỡng để CI/CD fail nếu coverage giảm dưới mức cho phép:
+
+```bash
+# Fail nếu line coverage < 80%
+dotnet test \
+    /p:CollectCoverage=true \
+    /p:Threshold=80 \
+    /p:ThresholdType=line \
+    /p:ThresholdStat=total
+```
+
+```xml
+<!-- Cấu hình trong .csproj -->
+<PropertyGroup>
+  <CollectCoverage>true</CollectCoverage>
+  <CoverletOutputFormat>cobertura</CoverletOutputFormat>
+  <CoverletOutput>./TestResults/coverage/</CoverletOutput>
+  <Threshold>80</Threshold>
+  <ThresholdType>line</ThresholdType>
+</PropertyGroup>
+```
+
+---
+
+## 🔄 Coverage Trong CI/CD
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/test.yml
+name: Test with Coverage
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test with Coverage
+        run: |
+          dotnet test --no-build \
+            /p:CollectCoverage=true \
+            /p:CoverletOutputFormat=opencover \
+            /p:CoverletOutput=./coverage/ \
+            /p:Threshold=70
+
+      - name: Generate Report
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"./coverage/coverage.opencover.xml" \
+            -targetdir:"./coverage/report" \
+            -reporttypes:"MarkdownSummaryGitHub"
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/report/
+
+      - name: Coverage Summary
+        run: cat ./coverage/report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+```
+
+### Azure DevOps Pipeline
+
+```yaml
+# azure-pipelines.yml
+steps:
+- task: DotNetCoreCLI@2
+  displayName: 'Run Tests with Coverage'
+  inputs:
+    command: test
+    arguments: >
+      --configuration Release
+      /p:CollectCoverage=true
+      /p:CoverletOutputFormat=cobertura
+      /p:CoverletOutput=$(Build.SourcesDirectory)/coverage/
+
+- task: reportgenerator@5
+  displayName: 'Generate Coverage Report'
+  inputs:
+    reports: '$(Build.SourcesDirectory)/coverage/coverage.cobertura.xml'
+    targetdir: '$(Build.SourcesDirectory)/coverage/report'
+    reporttypes: 'HtmlInline_AzurePipelines;Cobertura'
+
+- task: PublishCodeCoverageResults@1
+  displayName: 'Publish Coverage Results'
+  inputs:
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '$(Build.SourcesDirectory)/coverage/coverage.cobertura.xml'
+    reportDirectory: '$(Build.SourcesDirectory)/coverage/report'
+```
+
+---
+
+## 🤔 Bao Nhiêu Coverage Là Đủ?
+
+### Không Có Con Số Ma Thuật
+
+| Mức Coverage | Thực Tế                                                                   |
+| ------------ | ------------------------------------------------------------------------- |
+| **< 50%**    | Nguy hiểm — quá nhiều code không được kiểm tra                            |
+| **50–70%**   | Chấp nhận được cho legacy code đang cải thiện                             |
+| **70–80%**   | Mức an toàn cho hầu hết project                                           |
+| **80–90%**   | Tốt — đây là mục tiêu hợp lý cho production code                         |
+| **> 90%**    | Rất tốt — nhưng watch out cho test chất lượng kém chỉ để tăng số         |
+| **100%**     | Không thực tế và không cần thiết cho mọi codebase                        |
+
+### Nguyên Tắc Thực Tế
+
+```
+✅ Tập trung coverage vào:
+   - Business logic (domain services, use cases)
+   - Validation rules
+   - Error handling paths
+   - Calculation/transformation logic
+
+⚠️ Ít cần thiết hơn:
+   - Configuration code
+   - Data Transfer Objects (DTOs) thuần túy
+   - Dependency injection setup
+   - Auto-generated code (migrations, scaffolded code)
+   - Main entry point (Program.cs)
+```
+
+---
+
+## 🧬 Mutation Testing — Đo Chất Lượng Test
+
+**Mutation Testing** (Kiểm thử đột biến) đo xem test có thực sự kiểm tra logic không, bằng cách thay đổi (mutate) code và kiểm tra xem test có fail không.
+
+```
+Ý tưởng: Nếu thay đổi code mà test vẫn pass → test đó không có ý nghĩa
+```
+
+### Stryker.NET — Mutation Testing Framework
+
+```bash
+dotnet tool install -g dotnet-stryker
+```
+
+```json
+// stryker-config.json
+{
+  "stryker-config": {
+    "solution": "MyApp.sln",
+    "project": "MyApp/MyApp.csproj",
+    "test-projects": ["MyApp.Tests/MyApp.Tests.csproj"],
+    "mutation-level": "Advanced",
+    "reporters": ["html", "progress"],
+    "threshold": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
+    "ignore-methods": ["ToString", "GetHashCode"]
+  }
+}
+```
+
+```bash
+dotnet stryker
+# Mở report: StrykerOutput/reports/mutation-report.html
+```
+
+### Ví Dụ Mutation Test
+
+```csharp
+// Code gốc
+public bool IsAdult(int age) => age >= 18;
+
+// Stryker tạo các mutations:
+// Mutation 1: age > 18  (thay >= bằng >)
+// Mutation 2: age <= 18 (đảo điều kiện)
+// Mutation 3: return true (luôn trả true)
+// Mutation 4: return false (luôn trả false)
+
+// Test phải fail với TẤT CẢ mutations → test tốt
+[Theory]
+[InlineData(18, true)]   // Bắt được Mutation 1
+[InlineData(17, false)]  // Bắt được Mutation 2 và 3
+[InlineData(100, true)]  // Bắt được Mutation 4
+public void IsAdult_ReturnsCorrectResult(int age, bool expected)
+{
+    new AgeChecker().IsAdult(age).Should().Be(expected);
+}
+```
+
+---
+
+## 🔍 Phân Tích Coverage Report — Cách Đọc
+
+### Các Chỉ Số Trong HTML Report
+
+```
+Summary:
+  Line coverage:    85.3%    ← Tốt
+  Branch coverage:  72.1%    ← Chấp nhận
+  Method coverage:  91.8%    ← Rất tốt
+
+Uncovered hotspots:
+  OrderService.cs line 145   ← Exception handling path chưa test
+  PaymentProcessor.cs line 89 ← Retry logic chưa test
+```
+
+### Màu Trong Report
+
+```
+🟢 Xanh (Green)  — Code được test chạy qua
+🔴 Đỏ (Red)     — Code CHƯA được test chạy qua
+🟡 Vàng (Yellow) — Nhánh chỉ được test một phần (ví dụ: if đúng nhưng chưa test if sai)
+```
+
+---
+
+## ❌ Anti-Patterns Coverage
+
+### 1. Coverage Farming (Trồng Coverage)
+
+```csharp
+// ❌ BAD: Test không có assertion — chỉ để tăng coverage số
+[Fact]
+public void GetUser_JustForCoverage()
+{
+    var service = new UserService(mock.Object);
+    service.GetUser(Guid.NewGuid()); // Không assert gì cả
+    // Tăng line coverage nhưng test vô nghĩa
+}
+
+// ✅ GOOD: Test thực sự kiểm tra behavior
+[Fact]
+public void GetUser_ExistingId_ReturnsUser()
+{
+    var expected = new User { Id = userId, Name = "John" };
+    mockRepo.Setup(r => r.GetById(userId)).Returns(expected);
+
+    var result = service.GetUser(userId);
+
+    result.Should().BeEquivalentTo(expected);
+}
+```
+
+### 2. Bỏ Qua Branch Coverage
+
+```csharp
+// Code với 3 nhánh
+public string Classify(int score)
+{
+    if (score >= 90) return "Excellent";      // Branch A
+    if (score >= 70) return "Good";           // Branch B
+    return "Needs Improvement";               // Branch C
+}
+
+// ❌ BAD: Chỉ test 1 case → line coverage cao nhưng branch coverage thấp
+[Fact]
+public void Classify_Returns_Excellent() =>
+    new Classifier().Classify(95).Should().Be("Excellent");
+
+// ✅ GOOD: Test tất cả branches
+[Theory]
+[InlineData(95, "Excellent")]   // Branch A
+[InlineData(75, "Good")]        // Branch B
+[InlineData(60, "Needs Improvement")] // Branch C
+[InlineData(70, "Good")]        // Biên: đúng 70 → branch B
+[InlineData(89, "Good")]        // Biên: 89 → branch B
+[InlineData(90, "Excellent")]   // Biên: đúng 90 → branch A
+public void Classify_VariousScores_ReturnsCorrectCategory(
+    int score, string expected)
+{
+    new Classifier().Classify(score).Should().Be(expected);
+}
+```
+
+---
+
+## 📋 Checklist Coverage
+
+```
+□ Cài Coverlet và cấu hình output format
+□ Tích hợp coverage vào CI/CD pipeline
+□ Đặt ngưỡng tối thiểu (80% line, 70% branch)
+□ Loại trừ auto-generated code và Program.cs
+□ Dùng branch coverage, không chỉ line coverage
+□ Test các edge cases và error paths (thường bị bỏ qua)
+□ Dùng mutation testing để kiểm tra chất lượng test
+□ Review uncovered code mỗi sprint
+□ Không chase 100% — focus vào critical business logic
+```
+
+---
+
+## 🔗 Liên Quan
+
+- [1-unit-testing.md](./1-unit-testing.md) — Viết test để tăng coverage có nghĩa
+- [4-tdd-guide.md](./4-tdd-guide.md) — TDD tự nhiên đạt coverage cao
+- [6-performance-testing.md](./6-performance-testing.md) — Loại coverage khác: performance
+
+---
+
+*Cập nhật: 2026-06-02 | Coverlet 6.x | Stryker.NET 3.x | .NET 8*
