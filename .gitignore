@@ -1,0 +1,50 @@
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+.pytest_cache/
+htmlcov/
+.mypy_cache/
+.coverage
+.coverage.*
+
+# VS Code
+.vscode/
+
+# IDEs
+.idea/
+.history/
+
+# Logs
+*.log
+
+# Builds
+dist/
+build/
+out/
+
+# Misc
+*.sqlite3
+*.db
+*.bak
+*~
+*.swp
+.claude/settings.local.json
