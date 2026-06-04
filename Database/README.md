@@ -125,7 +125,7 @@
 - Quản lý & Vận hành: monitoring, scaling, maintenance, DR runbook
 - Tối ưu Chi phí: Reserved Instances, right-sizing, storage type, data transfer
 
-### **8. Phỏng Vấn** (`11-phong-van/`)
+### **8. Phỏng Vấn** (`08-phong-van/`)
 
 - Top 20 câu hỏi phỏng vấn DBA
 - Tình huống thiết kế hệ thống
@@ -208,7 +208,7 @@ Lý tưởng cho: Caching, sessions, rate limiting, pub/sub
 
 ### Chuẩn Bị Phỏng Vấn
 
-1. Tập trung vào `11-phong-van/`
+1. Tập trung vào `08-phong-van/`
 2. Nghiên cứu sâu về nền tảng mục tiêu
 3. Chuẩn bị câu chuyện sự cố (STAR)
 4. Luyện tập giải thích rõ ràng
